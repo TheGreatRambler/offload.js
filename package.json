@@ -1,0 +1,22 @@
+{
+	"name": "offload",
+	"version": "0.0.1",
+	"description": "Offload code to your clients",
+	"dependencies": {
+		"ws": "^5.2.1",
+		"performance-now": "^2.1.0",
+		"ip": "^1.1.5",
+		"pson": "^2.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/TheGreatRambler/offload.js"
+	},
+	"keywords": [
+    		"node",
+    		"web-server",
+    		"offload"
+  	],
+	"author": "TheGreatRambler",
+	"license": "MIT"
+}
