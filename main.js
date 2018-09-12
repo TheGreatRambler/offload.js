@@ -4,94 +4,38 @@ var fs = require('fs');
 var now = require('performance-now');
 var ip = require('ip');
 var PSON = require('pson');
+var readMultipleFiles = require('read-files-promise');
+var path = require('path');
 
 var offload = function (options) {
 	var self = this;
 	if (!options) {
 		options = {};
 	}
-	options.port = options.port || 1234;
+	this.port = options.port || 1234;
 	this.passedOptions = options;
 	this.eventCallbacks = {};
 	this.runningCodes = [];
 	this.currentConnections = [];
 	this.url = ip.address() + ":" + options.port;
-	fs.readFile("./main.html", "utf8", function (htmlerr, htmlfile) {
-		if (htmlerr) {
-			return htmlerr;
-		}
-		var server = http.createServer(function (req, res) {
-			res.writeHead(200, {
-				"Content-Type": "text/html",
-				"Content-Length": htmlfile.length,
-				"Cache-Control": "no-cache, no-store, must-revalidate",
-				"Pragma": "no-cache",
-				"Expires": "0"
-			});
-			res.write(htmlfile);
-			res.end();
+	this.serverFiles = {};
+	var filesToLoad = fs.readdirSync(__dirname + "/server/"); // hardcoded
+	readMultipleFiles(filesToLoad, "utf8").then(function(fileBuffers) {
+		fileBuffers.forEach(function(buffer, index) {
+			this.serverFiles[path.basename(filesToLoad[index])] = buffer.toString("utf8");
 		});
-		var wss = new WebSocket.Server({
-			server: server
-		});
-		wss.on("connection", function (ws) {
-			var id;
-			var start = now();
-			// send beginning socket to get data
-			ws.send(JSON.stringify({
-				flag: "getInfo",
-				data: (new Array(1025)).join("a") // generates exactly one kilobyte of data
-			}));
-			ws.on("message", function (message) {
-				var data = JSON.parse(message);
-				if (data.flag === "hardwareInfo") {
-					// recieve hardware info from client
-					data.networkSpeed = Number((now() - start).toFixed(3));
-					data.score = self.calculateScore(data);
-					data.socket = ws;
-					data.coresRunning = 0;
-					data.id = id = uuidv4();
-					self.currentConnections.push(data); // add socket to list
-					// sort from high score to low
-					self.currentConnections.sort(function (a, b) {
-						return b.score - a.score;
-					});
-					// this is the first client
-					if (self.currentConnections.length === 1) {
-						self.emit("first-client", data);
-					}
-					// callback for a new client
-					self.emit("new-client", data);
-				} else if (data.flag === "close") {
-					// client is closing
-					if (typeof id !== "undefined") {
-						// remove client from list
-						removeElementWithProp(self.currentConnections, "id", id);
-					}
-					ws.close();
-					// callback for client leaving
-					self.emit("leave-client", data);
-				} else if (data.flag === "codeBack") {
-					// code is coming back
-					getObjectByProp(self.currentConnections, "id", data.socketId).coresRunning -= 1;
-					if (!data.error) {
-						self.runningCodes[data.id].resolve(unSerializeObject(data.serialized));
-					} else {
-						self.runningCodes[data.id].reject(unSerializeObject(data.serialized));
-					}
-					delete self.runningCodes[data.id];
-				}
-			});
-		});
-		server.listen(options.port);
+		this._startServer();
+	}, function(err) {
+		console.log("Necessary static files cannot be found in path /server/. please check your 'offload' instance");
 	});
 };
+var oP = offload.prototype;
 
-offload.prototype.getClients = function () {
+oP.getClients = function () {
 	return this.currentConnections;
 };
 
-offload.prototype.getThreadCount = function() {
+oP.getThreadCount = function() {
 	var totalthreads = 0;
 	this.currentConnections.forEach(function(connection) {
 		totalthreads += connection.cores;
@@ -99,7 +43,7 @@ offload.prototype.getThreadCount = function() {
 	return totalthreads;
 };
 
-offload.prototype.getRunningThreadCount = function() {
+oP.getRunningThreadCount = function() {
 	var totalrunningthreads = 0;
 	this.currentConnections.forEach(function(connection) {
 		totalrunningthreads += connection.coresRunning;
@@ -107,15 +51,15 @@ offload.prototype.getRunningThreadCount = function() {
 	return totalrunningthreads;
 };
 
-offload.prototype.getUrl = function () {
+oP.getUrl = function () {
 	return this.url;
 };
 
-offload.prototype.on = function (event, cb) {
+oP.on = function (event, cb) {
 	this.eventCallbacks[event] = cb;
 }
 
-offload.prototype.calculateScore = function (hardwareData) {
+oP.calculateScore = function (hardwareData) {
 	var networkScore = (100 / hardwareData.networkSpeed) * 10; // 1 second = one point, 1/2 second = 5 points
 	var coreScore = hardwareData.cores * 10;
 	var memoryScore = (hardwareData.memory / 1e+9) * 2; // 1 gigabyte = 2 points
@@ -125,7 +69,7 @@ offload.prototype.calculateScore = function (hardwareData) {
 	return networkScore + coreScore + memoryScore + computerTypeScore + pixelScore + webGlScore;
 };
 
-offload.prototype.runFunc = function (options) {
+oP.runFunc = function (options) {
 	// options.code = [func], options.arguments = [args]
 	var self = this;
 	return new Promise(function (resolve, reject) {
@@ -196,10 +140,77 @@ offload.prototype.runFunc = function (options) {
 	});
 };
 
-offload.prototype.emit = function (func, data) {
+oP.emit = function (func, data) {
 	if (this.eventCallbacks[func]) {
 		this.eventCallbacks[func](data);
 	}
+};
+
+oP._startServer = function() {
+	var server = http.createServer(function (req, res) {
+			res.writeHead(200, {
+				"Content-Type": "text/html",
+				"Content-Length": htmlfile.length,
+				"Cache-Control": "no-cache, no-store, must-revalidate",
+				"Pragma": "no-cache",
+				"Expires": "0"
+			});
+			//res.write(htmlfile); <-- this needs to be added
+			res.end();
+		});
+		var wss = new WebSocket.Server({
+			server: server
+		});
+		wss.on("connection", function (ws) {
+			var id;
+			var start = now();
+			// send beginning socket to get data
+			ws.send(JSON.stringify({
+				flag: "getInfo",
+				data: (new Array(1025)).join("a") // generates exactly one kilobyte of data
+			}));
+			ws.on("message", function (message) {
+				var data = JSON.parse(message);
+				if (data.flag === "hardwareInfo") {
+					// recieve hardware info from client
+					data.networkSpeed = Number((now() - start).toFixed(3));
+					data.score = self.calculateScore(data);
+					data.socket = ws;
+					data.coresRunning = 0;
+					data.id = id = uuidv4();
+					self.currentConnections.push(data); // add socket to list
+					// sort from high score to low
+					self.currentConnections.sort(function (a, b) {
+						return b.score - a.score;
+					});
+					// this is the first client
+					if (self.currentConnections.length === 1) {
+						self.emit("first-client", data);
+					}
+					// callback for a new client
+					self.emit("new-client", data);
+				} else if (data.flag === "close") {
+					// client is closing
+					if (typeof id !== "undefined") {
+						// remove client from list
+						removeElementWithProp(self.currentConnections, "id", id);
+					}
+					ws.close();
+					// callback for client leaving
+					self.emit("leave-client", data);
+				} else if (data.flag === "codeBack") {
+					// code is coming back
+					getObjectByProp(self.currentConnections, "id", data.socketId).coresRunning -= 1;
+					if (!data.error) {
+						self.runningCodes[data.id].resolve(unSerializeObject(data.serialized));
+					} else {
+						self.runningCodes[data.id].reject(unSerializeObject(data.serialized));
+					}
+					delete self.runningCodes[data.id];
+				}
+			});
+		});
+		server.listen(this.port);
 };
 
 /*
