@@ -6,6 +6,7 @@ var ip = require('ip');
 var PSON = require('pson');
 var readMultipleFiles = require('read-files-promise');
 var path = require('path');
+var fileType = require('file-type');
 
 var offload = function (options) {
 	var self = this;
@@ -22,7 +23,7 @@ var offload = function (options) {
 	var filesToLoad = fs.readdirSync(__dirname + "/server/"); // hardcoded
 	readMultipleFiles(filesToLoad, "utf8").then(function(fileBuffers) {
 		fileBuffers.forEach(function(buffer, index) {
-			this.serverFiles[path.basename(filesToLoad[index])] = buffer.toString("utf8");
+			this.serverFiles[path.basename(filesToLoad[index])] = buffer;
 		});
 		this._startServer();
 	}, function(err) {
@@ -148,15 +149,23 @@ oP.emit = function (func, data) {
 
 oP._startServer = function() {
 	var server = http.createServer(function (req, res) {
+		if (this.serverFiles[req.url]) {
 			res.writeHead(200, {
-				"Content-Type": "text/html",
-				"Content-Length": htmlfile.length,
+				"Content-Type": fileType(this.serverFiles[req.url]).mime,
+				"Content-Length": this.serverFiles[req.url].byteLength,
 				"Cache-Control": "no-cache, no-store, must-revalidate",
 				"Pragma": "no-cache",
 				"Expires": "0"
 			});
-			//res.write(htmlfile); <-- this needs to be added
+			res.write(this.serverFiles[req.url]);
 			res.end();
+		} else {
+			res.writeHead(404, {
+				'Content-Type': 'text/html'
+			});
+    			res.write("That file don't exist, you dumb");
+    			res.end();
+		}
 		});
 		var wss = new WebSocket.Server({
 			server: server
