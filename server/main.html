@@ -58,10 +58,15 @@
 							}
 						}
 					};
-					var scriptPart = "(" + scriptFunc.toString() + ")(" + (JSON.stringify(data.scripts) || "[]") + ");";
-					var functionPart = funcRegex.exec(data.data.code)[0];
-					var code = "return " + functionPart + scriptPart + data.data.code.replace(functionPart, "");
-					codesRecieved.push(code); // add function to cache
+					var code;
+					if (Number.isNaN(Number(data.data.code))) { // number is not a number
+						var scriptPart = "(" + scriptFunc.toString() + ")(" + (JSON.stringify(data.scripts) || "[]") + ");";
+						var functionPart = funcRegex.exec(data.data.code)[0];
+						code = "return " + functionPart + scriptPart + data.data.code.replace(functionPart, "");
+						codesRecieved.push(code); // add function to cache
+					} else {
+						code = codesRecieved[Number(data.data.code)]; // cached code, saves bandwidth
+					}
 					var funcToRun = threadify((new Function(code))()); // way to return the func
 					var args = unSerializeObject(data.data.arguments);
 					var job = funcToRun.apply(null, args);
