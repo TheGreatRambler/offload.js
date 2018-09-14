@@ -13,6 +13,7 @@
 		var socket = new WebSocket("ws://" + url);
 		var threads = navigator.hardwareConcurrency || 4;
 		var threadsopen = 0;
+		var codesRecieved = [];
 		socket.onopen = function() {
 			socket.onmessage = function(e) {
 				var data = unSerializeObject(e.data);
@@ -60,6 +61,7 @@
 					var scriptPart = "(" + scriptFunc.toString() + ")(" + (JSON.stringify(data.scripts) || "[]") + ");";
 					var functionPart = funcRegex.exec(data.data.code)[0];
 					var code = "return " + functionPart + scriptPart + data.data.code.replace(functionPart, "");
+					codesRecieved.push(code); // add function to cache
 					var funcToRun = threadify((new Function(code))()); // way to return the func
 					var args = unSerializeObject(data.data.arguments);
 					var job = funcToRun.apply(null, args);
