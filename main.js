@@ -78,6 +78,7 @@ oP.runFunc = function(options) {
 			for (var i = 0; i < self.currentConnections.length; i++) {
 				var currentSocket = self.currentConnections[i];
 				if (currentSocket.coresRunning < currentSocket.cores) {
+					// this is the one
 					var codeId = uuidv4();
 					self.runningCodes[codeId] = {
 						resolve: resolve,
@@ -85,6 +86,13 @@ oP.runFunc = function(options) {
 					};
 					var dataToSend = {};
 					dataToSend.code = isString(options.code) ? options.code : options.code.toString();
+					if (cachedFuncs.indexOf(dataToSend.code) !== -1) {
+						// it was cached
+						dataToSend.code = cachedFuncs.indexOf(dataToSend.code);
+					} else {
+						// it was not cached
+						cachedFuncs.push(dataToSend.code);
+					}
 					dataToSend.arguments = serializeObject(options.arguments);
 					currentSocket.coresRunning += 1;
 					var scripts;
@@ -130,6 +138,7 @@ oP.runFunc = function(options) {
 						socketId: currentSocket.id,
 						scripts: scripts
 					}));
+					// break out of for-loop
 					break;
 				} else if (i === self.currentConnections.length - 1) {
 					reject(new Error("All clients are running"));
@@ -170,7 +179,6 @@ oP._startServer = function() {
 		server: server
 	});
 	wss.on("connection", function(ws) {
-		var id;
 		var start = now();
 		// send beginning socket to get data
 		ws.send(JSON.stringify({
@@ -185,7 +193,8 @@ oP._startServer = function() {
 				data.score = self.calculateScore(data);
 				data.socket = ws;
 				data.coresRunning = 0;
-				data.id = id = uuidv4();
+				data.id = uuidv4();
+				data.cachedFuncs = []; // cache functions
 				self.currentConnections.push(data); // add socket to list
 				// sort from high score to low
 				self.currentConnections.sort(function(a, b) {
@@ -199,10 +208,8 @@ oP._startServer = function() {
 				self.emit("new-client", data);
 			} else if (data.flag === "close") {
 				// client is closing
-				if (typeof id !== "undefined") {
-					// remove client from list
-					removeElementWithProp(self.currentConnections, "id", id);
-				}
+				// remove client from list
+				removeElementWithProp(self.currentConnections, "id", id);
 				ws.close();
 				// callback for client leaving
 				self.emit("leave-client", data);
