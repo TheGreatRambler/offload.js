@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 
@@ -8,119 +7,34 @@
 </head>
 
 <body>
-	<script>
-		var url = window.location.hostname + ":" + window.location.port;
-		var socket = new WebSocket("ws://" + url);
-		var threads = navigator.hardwareConcurrency || 4;
-		var threadsopen = 0;
-		var codesRecieved = [];
-		socket.onopen = function() {
-			socket.onmessage = function(e) {
-				var data = unSerializeObject(e.data);
-				if (data.flag === "getInfo") {
-					navigator.getBattery().then(function(battery) {
-						var computerType;
-						if (battery.charging && battery.chargingTime === 0) {
-							computerType = "desktop"; // fails for fully charged laptop
-						} else {
-							if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-								computerType = "mobile";
-							} else {
-								computerType = "laptop";
-							}
-						}
-						var totalPixels = window.screen.width * window.devicePixelRatio * window.screen.height * window.devicePixelRatio;
-						var memory; // in bytes
-						try {
-							memory = performance.memory.totalJSHeapSize;
-						} catch (err) {
-							memory = 2e+9; // 2 gigabytes
-						}
-						socket.send(serializeObject({
-							flag: "hardwareInfo",
-							cores: threads,
-							memory: memory,
-							type: computerType,
-							pixels: totalPixels,
-							webGl: webgl_support()
-						}));
-					});
-				} else if (data.flag === "newCode") {
-					threadsopen++;
-					var funcRegex = /function\s*\(.*\)\s*\{/g;
-					var scriptFunc = function(scripts) {
-						for (var i = 0; i < scripts.length; i++) {
-							var script = scripts[i];
-							if (script.type === "scriptString") {
-								importScripts(URL.createObjectURL(new Blob([script.content])));
-							} else if (script.type === "scriptUrl") {
-								importScripts(script.content);
-							}
-						}
-					};
-					var code;
-					if (Number.isNaN(Number(data.data.code))) { // number is not a number
-						var scriptPart = "(" + scriptFunc.toString() + ")(" + (JSON.stringify(data.scripts) || "[]") + ");";
-						var functionPart = funcRegex.exec(data.data.code)[0];
-						code = "return " + functionPart + scriptPart + data.data.code.replace(functionPart, "");
-						codesRecieved.push(code); // add function to cache
-					} else {
-						code = codesRecieved[Number(data.data.code)]; // cached code, saves bandwidth
-					}
-					var funcToRun = threadify((new Function(code))()); // way to return the func
-					var args = unSerializeObject(data.data.arguments);
-					var job = funcToRun.apply(null, args);
-					job.done = function(result) {
-						socket.send(serializeObject({
-							flag: "codeBack",
-							error: false,
-							serialized: serializeObject(result),
-							id: data.id,
-							socketId: data.socketId
-						}));
-					};
-					job.failed = function(result) {
-						//job.terminate();
-						socket.send(serializeObject({
-							flag: "codeBack",
-							error: true,
-							serialized: serializeObject(result),
-							id: data.id,
-							socketId: data.socketId
-						}));
-					};
-				}
-			};
+	<!-- normal libs -->
+	<script src="bytebuffer.js"></script>
+	<script src="pson.js"></script>
+	<script src="threadify.js"></script>
 
-			window.onbeforeunload = function() {
-				socket.send(JSON.stringify({
-					flag: "close"
-				}));
-			};
-		};
+	<!-- octane benchmark libs -->
+	<script src="octane/base.js"></script>
+	<script src="octane/richards.js"></script>
+	<script src="octane/deltablue.js"></script>
+	<script src="octane/crypto.js"></script>
+	<script src="octane/raytrace.js"></script>
+	<script src="octane/earley-boyer.js"></script>
+	<script src="octane/regexp.js"></script>
+	<script src="octane/splay.js"></script>
+	<script src="octane/navier-stokes.js"></script>
+	<script src="octane/pdfjs.js"></script>
+	<script src="octane/mandreel.js"></script>
+	<script src="octane/gbemu-part1.js"></script>
+	<script src="octane/gbemu-part2.js"></script>
+	<script src="octane/code-load.js"></script>
+	<script src="octane/box2d.js"></script>
+	<script src="octane/zlib.js"></script>
+	<script src="octane/zlib-data.js"></script>
+	<script src="octane/typescript.js"></script>
+	<script src="octane/typescript-input.js"></script>
+	<script src="octane/typescript-compiler.js"></script>
+	<script src="index.js"></script>
 
-		function webgl_support() {
-			try {
-				var canvas = document.createElement('canvas');
-				return !!(!!window.WebGLRenderingContext &&
-					(canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
-			} catch (e) {
-				return false;
-			}
-		}
-		
-function serializeObject(obj) {
-	var psonPair = new PSON.StaticPair();
-	var encodedArraybuffer = psonPair.toArrayBuffer(obj);
-	return encodedArraybuffer;
-}
-
-function unSerializeObject(aB) {
-	var psonPair = new PSON.StaticPair();
-	var decodedObj = psonPair.decode(aB);
-	return decodedObj;
-}
-	</script>
 </body>
 
 </html>

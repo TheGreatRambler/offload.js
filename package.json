@@ -11,15 +11,17 @@
 		"performance-now": "^2.1.0",
 		"ip": "^1.1.5",
 		"pson": "^2.0.0",
-		"read-files-promise": "^1.1.1"
+		"read-files-promise": "^1.1.1",
+		"file-type": "^9.0.0",
+		"recursive-readdir": "^2.2.2"
 	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/TheGreatRambler/offload.js.git"
 	},
 	"keywords": [
-    		"node",
-    		"web-server",
-    		"offload"
-  	]
+		"node",
+		"web-server",
+		"offload"
+	]
 }
