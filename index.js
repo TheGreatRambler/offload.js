@@ -150,12 +150,9 @@ oP.emit = function (func, data) {
 
 oP._startServer = function () {
 	var self = this;
-	console.log(self.serverFiles);
 	var server = http.createServer(function (req, res) {
-		if (req.url === "/") {
-			req.url = "/main.html";
-		}
 		if (self.serverFiles[req.url]) {
+			console.log(req.url);
 			res.writeHead(200, {
 				"Content-Type": fileType(self.serverFiles[req.url]).mime,
 				"Content-Length": self.serverFiles[req.url].byteLength,
